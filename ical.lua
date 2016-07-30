@@ -39,6 +39,7 @@ end
 
 --TODO parsing period (list of dates?)
 local function parse_date(v)
+  if not v then return nil end
 	local t, utc = {}, nil
 	t.year, t.month, t.day = v:match("^(%d%d%d%d)(%d%d)(%d%d)")
 	t.hour, t.min, t.sec, utc = v:match("T(%d%d)(%d%d)(%d%d)(Z?)")
@@ -78,9 +79,6 @@ function parser.VEVENT(entry, k, v)
 		entry[k].WKST = v:match("WKST=([A-Z]+)")
 		entry[k].UNTIL = parse_date(v:match("UNTIL=([TZ0-9]+)"))
     entry[k].COUNT = v:match("COUNT=([0-9]+)")
-    if entry[k].UNTIL == nil and entry[k].COUNT == nil then
-      return "RRULE.UNTIL or RRULE.COUNT not found"
-    end
     entry[k].INTERVAL = v:match("INTERVAL=([0-9]+)")
 		-- byday, bymonth, ecc ecc
     local byk, by = v:match("(BY%a+)=([A-Z,]+)")
@@ -89,6 +87,9 @@ function parser.VEVENT(entry, k, v)
       for b in by:gmatch("([A-Z]+),?") do
         table.insert(entry[k][byk], b)
       end
+    end
+    if entry[k].UNTIL == nil and entry[k].COUNT == nil then
+      return "RRULE.UNTIL or RRULE.COUNT not found"
     end
     
 	elseif k:find("EXDATE") then
@@ -165,8 +166,6 @@ function ical.new(data)
 	end
 	
 	-- Return calendar
-	--TODO check if #subs is 1? return more entries? check if it's a VCALENDAR?
-	--print("Cal parsed!")
 	return entry.subs[1]
 end
 
@@ -196,8 +195,7 @@ end
 
 -- Given an entry, it returns the VEVENT sub-entries
 function ical.events(cal)
-	-- TODO check if 'cal' must be VCALENDAR???
-	if not cal then return nil end
+	if type(cal) ~= "table" or cal.type ~= "VCALENDAR" then return nil end
 	local evs = {}
 	for _,e in ipairs(cal.subs) do
 		if e.type == "VEVENT" then
@@ -262,13 +260,13 @@ function ical.sort_events(evs)
 end
 
 function ical.is_in(e, s)
-	if not (e and s) then return nil end
+	if type(e) ~= "table" or type(s) ~= "table" then return nil end
 	return (ical.time_compare(e.DTSTART, s.DTSTART) >= 0) and
 				 (e.DTEND == nil or (ical.time_compare(e.DTEND, s.DTEND) <= 0))
 end
 
 function ical.is_over(e, s)
-	if not (e and s) then return nil end
+	if type(e) ~= "table" or type(s) ~= "table" then return nil end
   local es_ss = ical.time_compare(e.DTSTART, s.DTSTART)
   local es_se = ical.time_compare(e.DTSTART, s.DTEND)
   local ee_ss = ical.time_compare(e.DTEND, s.DTSTART)
