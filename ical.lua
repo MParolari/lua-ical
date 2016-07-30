@@ -42,6 +42,9 @@ local function parse_date(v)
 	local t, utc = {}, nil
 	t.year, t.month, t.day = v:match("^(%d%d%d%d)(%d%d)(%d%d)")
 	t.hour, t.min, t.sec, utc = v:match("T(%d%d)(%d%d)(%d%d)(Z?)")
+  if (t.hour == nil) or (t.min == nil) or (t.sec == nil) then
+    t.hour, t.min, t.sec, utc = 0,0,0,nil
+  end
 	for k,v in pairs(t) do t[k] = tonumber(v) end
 	return os.time(t), utc
 end
