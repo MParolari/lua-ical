@@ -53,6 +53,7 @@ function parser.VEVENT(entry, k, v)
 	if k == "BEGIN" then
 		function entry:duration(f) return ical.duration(self, f) end
 		function entry:is_in(s) return ical.is_in(self, s) end
+    function entry:is_over(s) return ical.is_over(self, s) end
     
 	elseif k:find("DTSTART") or k:find("DTEND") then
 		-- get timezone id
@@ -260,10 +261,26 @@ function ical.sort_events(evs)
 	)
 end
 
-function ical.is_in(e, s) --TODO is_over like
+function ical.is_in(e, s)
 	if not (e and s) then return nil end
 	return (ical.time_compare(e.DTSTART, s.DTSTART) >= 0) and
 				 (e.DTEND == nil or (ical.time_compare(e.DTEND, s.DTEND) <= 0))
+end
+
+function ical.is_over(e, s)
+	if not (e and s) then return nil end
+  local es_ss = ical.time_compare(e.DTSTART, s.DTSTART)
+  local es_se = ical.time_compare(e.DTSTART, s.DTEND)
+  local ee_ss = ical.time_compare(e.DTEND, s.DTSTART)
+  local ee_se = ical.time_compare(e.DTEND, s.DTEND)
+  -- if event hasn't an end
+  if e.DTEND == nil then
+    return (es_ss >= 0) and (es_se <= 0) -- s_start, e_start, s_end
+  end
+  -- else
+	return ((es_ss >= 0) and (es_se <= 0)) -- s_start, e_start, s_end
+      or ((ee_ss >= 0) and (ee_se <= 0)) -- s_start, e_end, s_end
+      or ((es_ss <= 0) and (ee_se >= 0)) -- e_start, s_start, s_end, e_end
 end
 
 function ical.span(start, end_)
