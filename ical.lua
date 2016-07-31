@@ -113,6 +113,21 @@ function parser.VEVENT(entry, k, v)
   return nil -- no problems
 end
 
+function parser.STANDARD(entry, k, v)
+  if k:find("DTSTART") or k:find("RRULE") then
+    local err = parser.VEVENT(entry, k, v)
+    if err and err ~= "RRULE.UNTIL or RRULE.COUNT not found" then return err end
+  elseif k:find("TZOFFSETFROM") or k:find("TZOFFSETTO") then
+    local s, h, m = v:match("([+-])(%d%d)(%d%d)")
+    if s == "+" then s = 1 else s = -1 end
+    entry[k] = s*(tonumber(h)*3600 + tonumber(m)*60)
+  end
+  
+  return nil -- no problems
+end
+
+parser.DAYLIGHT = parser.STANDARD
+
 function parser.VCALENDAR(entry, k, v)
 	if k == "BEGIN" then
 		function entry:events() return ical.events(self) end
