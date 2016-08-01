@@ -75,16 +75,15 @@ function parser.VEVENT(entry, k, v)
     
 	elseif k:find("RRULE") or k:find("EXRULE") then
 		entry[k] = {}
-		entry[k].FREQ = v:match("FREQ=([a-zA-Z]+)")
+		entry[k].FREQ = v:match("FREQ=([A-Z]+)")
 		entry[k].WKST = v:match("WKST=([A-Z]+)")
 		entry[k].UNTIL = parse_date(v:match("UNTIL=([TZ0-9]+)"))
     entry[k].COUNT = v:match("COUNT=([0-9]+)")
     entry[k].INTERVAL = v:match("INTERVAL=([0-9]+)")
 		-- byday, bymonth, ecc ecc
-    local byk, by = v:match("(BY%a+)=([A-Z,]+)")
-    if byk and by then
+    for byk, by in v:gmatch("(BY[A-Z]+)=([%+%-0-9A-Z,]+)") do
       entry[k][byk] = {}
-      for b in by:gmatch("([A-Z]+),?") do
+      for b in by:gmatch("([%+%-0-9A-Z]+),?") do
         table.insert(entry[k][byk], b)
       end
     end
