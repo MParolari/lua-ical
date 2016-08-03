@@ -207,60 +207,78 @@ function ical.time_compare(a, b) --TODO define better (b-a)?
 	end
 end
 
+local function apply_rrule(orig, tb)
+  if not orig or type(tb) ~= "table" then return "Bad arguments" end
+  local exdates = orig.EXDATE or {}
+  local byday = orig.RRULE.BYDAY or {}
+  for i=1,#byday do
+    local d = byday[i]:match("[%+%-0-9]*([A-Z]+)")
+    byday[i] = wd[d]
+  end
+  if byday then table.sort(byday) end
+  -- check RRULE WEEKLY
+  if orig.RRULE.FREQ == "WEEKLY" then
+    -- new (current) event
+    local ne = clone(orig)
+    local count = 1 -- orig is the first occurrence
+    local function add_days(n)
+      ne.DTSTART = ne.DTSTART + n*24*3600
+      if ne.DTEND then ne.DTEND = ne.DTEND + n*24*3600 end
+    end
+    local last_i = 1
+    repeat
+      -- if true, ne will be inserted
+      local inserting = false
+      
+      -- check weekday
+      local w = tonumber(os.date("%w", ne.DTSTART))
+      for i = last_i, #byday do
+        local diff = byday[i] - w
+        if diff > 0 then
+          add_days(diff)
+          inserting = true
+          last_i = i
+          break
+        elseif i == #byday then -- if diff<0 with last byday[], go to next week
+          add_days(7-w)
+          last_i = 1
+        end
+      end
+      
+      -- check EXDATE
+      for i = 1, #exdates do
+        if ical.time_compare(exdates[i], ne.DTSTART) == 0 then
+          inserting = false
+        end
+      end
+      
+      -- insert
+      if inserting then tb[#tb +1] = clone(ne) end
+      
+      local quit = true -- avoid infinite loop by default
+      if orig.RRULE.UNTIL then
+        quit = ical.time_compare(ne.DTSTART, orig.RRULE.UNTIL) >= 0
+      elseif orig.RRULE.COUNT then
+        if inserting then count = count +1 end
+        quit = count >= orig.RRULE.COUNT
+      else
+        return "RRULE.UNTIL or RRULE.COUNT not found"
+      end
+      
+    until quit
+  end
+  --TODO check other sequences
+end
+
 -- Given an entry, it returns the VEVENT sub-entries
 function ical.events(cal)
 	if type(cal) ~= "table" or cal.type ~= "VCALENDAR" then return nil end
 	local evs = {}
 	for _,e in ipairs(cal.subs) do
 		if e.type == "VEVENT" then
-      -- insert event
 			table.insert(evs, e)
-      -- check RRULE
-			if e.RRULE then
-        -- check RRULE WEEKLY
-				if e.RRULE.FREQ == "WEEKLY" then
-          -- new (current) event
-					local ne = clone(e)
-          local count = 0
-					repeat
-            -- if true, ne will be inserted
-            local inserting = false
-            
-            -- add 24 hours
-						ne.DTSTART = ne.DTSTART + 24*3600
-						ne.DTEND = ne.DTEND + 24*3600
-            
-            -- check weekday --TODO iterate over day
-						local w = tonumber(os.date("%w", ne.DTSTART))
-						for _, weekday in ipairs(e.RRULE.BYDAY) do
-							if wd[weekday] == w then inserting = true end
-						end
-            
-            -- check EXDATE
-            if e.EXDATE ~= nil then
-              for _, exdate in ipairs(e.EXDATE) do
-                if ical.time_compare(exdate, ne.DTSTART) == 0 then inserting = false end
-              end
-            end
-            
-            -- insert
-            if inserting then table.insert(evs, clone(ne)) end
-            
-            local quit = true -- avoid infinite loop by default
-            if e.RRULE.UNTIL then
-              quit = ical.time_compare(ne.DTSTART, e.RRULE.UNTIL) >= 0
-            elseif e.RRULE.COUNT then
-              count = count +1
-              quit = count < e.RRULE.COUNT
-            else
-              return nil, "RRULE.UNTIL or RRULE.COUNT not found"
-            end
-            
-					until quit
-				end
-        --TODO check other sequences
-			end -- endif RRULE
-		end -- endif EVENT
+			if e.RRULE then apply_rrule(e, evs) end
+		end
 	end
 	return evs
 end
